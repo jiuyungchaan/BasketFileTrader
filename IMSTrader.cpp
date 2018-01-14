@@ -18,12 +18,14 @@ IMSTrader::IMSTrader(const char *user_id) {
 	snprintf(user_id_, sizeof(user_id_), "%s", user_id);
 	logined_ = false;
 	request_id_ = 1;
-	interval_ = 100; // wait 100 milliseconds
+	snprintf(config_file_name_, sizeof(config_file_name_), "%s", "ims.txt");
+	LoadConfig();
+	/*interval_ = 100; // wait 100 milliseconds
 	//snprintf(base_directory_, sizeof(base_directory_), "%s", "C:\\ims\\IMSClient_UAT_New");
 	snprintf(base_directory_, sizeof(base_directory_), "%s", "C:\\ims\\IMSClient_UAT_20171124(AutoExport)");
 	snprintf(order_directory_, sizeof(order_directory_), "%s\\Basket\\Order", base_directory_);
 	snprintf(cancel_directory_, sizeof(cancel_directory_), "%s\\Basket\\Cancel", base_directory_);
-	snprintf(response_directory_, sizeof(response_directory_), "%s\\Data", base_directory_);
+	snprintf(response_directory_, sizeof(response_directory_), "%s\\Data", base_directory_);*/
 	memset(basket_orders_, sizeof(basket_orders_), 0);
 	memset(basket_size_, sizeof(basket_size_), 0);
 	timer_end_ = 1;
@@ -50,6 +52,50 @@ void IMSTrader::Release() {
 
 bool IMSTrader::Logined() {
 	return logined_;
+}
+
+void IMSTrader::LoadConfig() {
+	fstream config_file;
+	config_file.open(config_file_name_, ios::in);
+	if (!config_file.good()) {
+		printf("Cannot read configuration file!\n");
+		exit(0);
+	}
+	char line[256];
+	vector<string> fields;
+	map<string, string> config_map;
+	while (!config_file.eof()) {
+		config_file.getline(line, 256);
+		if (strcmp(line, "") == 0)
+			continue;
+		fields.clear();
+		split(line, "=", fields);
+		if (fields.size() == 2) {
+			config_map.insert(pair<string, string>(fields[0], fields[1]));
+		}
+	}
+
+	map<string, string>::iterator it;
+	it = config_map.find("base_dir");
+	if (it != config_map.end()) {
+		snprintf(base_directory_, sizeof(base_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("order_dir");
+	if (it != config_map.end()) {
+		snprintf(order_directory_, sizeof(order_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("cancel_dir");
+	if (it != config_map.end()) {
+		snprintf(cancel_directory_, sizeof(cancel_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("response_dir");
+	if (it != config_map.end()) {
+		snprintf(response_directory_, sizeof(response_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("interval");
+	if (it != config_map.end()) {
+		interval_ = atoi(it->second.c_str());
+	}
 }
 
 void IMSTrader::WaitToOrder() {

@@ -8,6 +8,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 #include <windows.h>
 
@@ -16,13 +17,15 @@ using namespace std;
 WinnerTrader::WinnerTrader(const char *user_id) {
 	date_ = date_now();
 	snprintf(user_id_, sizeof(user_id_), "%s", user_id);
-	snprintf(base_directory_, sizeof(base_directory_), "%s", "C:\\lts-winner\\winner_lts_test_file_20171012");
+	snprintf(config_file_name_, sizeof(config_file_name_), "%s", "winner.txt");
+	LoadConfig();
+	/*snprintf(base_directory_, sizeof(base_directory_), "%s", "C:\\lts-winner\\winner_lts_test_file_20171012");
 	snprintf(order_directory_, sizeof(order_directory_), "%s\\files\\%s", base_directory_, user_id_);
-	snprintf(response_directory_, sizeof(response_directory_), "%s\\files\\%s", base_directory_, user_id_);
+	snprintf(response_directory_, sizeof(response_directory_), "%s\\files\\%s", base_directory_, user_id_);*/
 	snprintf(basket_id_file_name_, sizeof(basket_id_file_name_), "basket-id-record-%d.txt", date_);
 	logined_ = false;
 	request_id_ = 1;
-	interval_ = 100; // wait 100 milliseconds
+	//interval_ = 100; // wait 100 milliseconds
 	timer_end_ = 1;
 	queue_index_ = 0;
 	file_id_ = 1;
@@ -53,6 +56,46 @@ void WinnerTrader::Release() {
 
 bool WinnerTrader::Logined() {
 	return logined_;
+}
+
+void WinnerTrader::LoadConfig() {
+	fstream config_file;
+	config_file.open(config_file_name_, ios::in);
+	if (!config_file.good()) {
+		printf("Cannot read configuration file!\n");
+		exit(0);
+	}
+	char line[256];
+	vector<string> fields;
+	map<string, string> config_map;
+	while (!config_file.eof()) {
+		config_file.getline(line, 256);
+		if (strcmp(line, "") == 0)
+			continue;
+		fields.clear();
+		split(line, "=", fields);
+		if (fields.size() == 2) {
+			config_map.insert(pair<string, string>(fields[0], fields[1]));
+		}
+	}
+
+	map<string, string>::iterator it;
+	it = config_map.find("base_dir");
+	if (it != config_map.end()) {
+		snprintf(base_directory_, sizeof(base_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("order_dir");
+	if (it != config_map.end()) {
+		snprintf(order_directory_, sizeof(order_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("response_dir");
+	if (it != config_map.end()) {
+		snprintf(response_directory_, sizeof(response_directory_), "%s", it->second.c_str());
+	}
+	it = config_map.find("interval");
+	if (it != config_map.end()) {
+		interval_ = atoi(it->second.c_str());
+	}
 }
 
 void WinnerTrader::LoadBasketID() {
@@ -380,7 +423,7 @@ void WinnerTrader::ScanResponseFile() {
 				finished_basket_ids.push_back(it->first);
 			}
 		} // for
-		for (int i = 0; i < finished_basket_ids.size(); i++) {
+		for (size_t i = 0; i < finished_basket_ids.size(); i++) {
 			baskets_map_.erase(finished_basket_ids[i]);
 		}
 	} // while

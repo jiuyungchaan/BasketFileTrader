@@ -1,8 +1,7 @@
-#ifndef _IMS_TRADER_H
-#define _IMS_TRADER_H
+#ifndef _TSI_TRADER_H
+#define _TSI_TRADER_H
 
-
-
+#include <set>
 #include <map>
 #include <string>
 #include <fstream>
@@ -10,11 +9,11 @@
 
 #include "BasketFileTraderApi.h"
 
-class IMSTrader : public BasketFileTraderApi
+class TSITrader : public BasketFileTraderApi 
 {
 public:
-	IMSTrader(const char *user_id);
-	virtual ~IMSTrader();
+	TSITrader(const char *user_id);
+	virtual ~TSITrader();
 
 	void Init();
 	void Release();
@@ -39,25 +38,27 @@ public:
 	void OnRspError(BFRspInfoField *pRspInfo);
 
 private:
-	struct request_ptr {
+	struct order {
 	public:
-		static const int TYPE_INVALID = 0;
-		static const int TYPE_ORDER_TICKET = 1;
-		static const int TYPE_CANCEL_TICKET = 2;
-		static const int TYPE_TRADE_ACCOUNT = 3;
-		static const int TYPE_QUERY_BALANCE = 4;
-		static const int TYPE_QUERY_POSITION = 5;
-		static const int TYPE_QUERY_MARGINSTOCK = 6;
+		char local_order_id[64];
+		char instrument_id[32];
+		int exch;
+		int direction;
+		int volume;
+		int fill_vol;
+		int status; // 0:inserted, 1:partially traded 2:all traded 3:canceled
+		int init;
+		double limit_price;
 
-		int request_type;
-		void *ptr;
-
-		request_ptr() : request_type(TYPE_INVALID), ptr(NULL) {}
-		request_ptr(int type, void *p) : request_type(type), ptr(p) {}
+		order() : local_order_id{ 0 }, instrument_id{ 0 },  fill_vol(0), status(0), init(0) {}
 	};
 
 	void LoadConfig();
 	void WaitToOrder();
+	void TopMostTSI();
+	void FreshKeyboardInput();
+	void ScanResultOrderFile();
+	void ScanResultCancelFile();
 	void ScanResponseFile();
 	void ScanTradeFile();
 	void ScanFundFile();
@@ -68,16 +69,23 @@ private:
 	char user_id_[32];
 	bool logined_;
 	int request_id_;
-	request_ptr* requests_[50000];
-	std::map<std::string, unsigned> client_sys_map_;
+	int local_entrust_no_, entrust_cancel_no_;
+	std::map<int, std::string> local_entrust2order_; // map match local_entrust_no for local_order_id
+	std::map<int, std::string> entrust2order_; // map match entrust no for local_order_id
+	std::set<int> entrust_nos_; // entrust_no set
+	order *orders_;
+	BFInputOrderField **local_orders_;
+
 	std::fstream log_file_;
 
 	// multi-thread basket-order timer fields
 	const int MAX_BASKET_SIZE = 300;
+	int date_;
 	int interval_; // milliseconds to sleep
 	char base_directory_[64];
 	char order_directory_[64];
 	char cancel_directory_[64];
+	char result_directory_[64];
 	char response_directory_[64];
 	char config_file_name_[64];
 	BFInputOrderField basket_orders_[2][300];
@@ -87,4 +95,7 @@ private:
 	int file_id_;
 };
 
+
 #endif
+
+

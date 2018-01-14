@@ -114,7 +114,7 @@ private:
 
 		bool Finished() {
 			bool finished = true;
-			for (int i = 0; i < order_list.size(); i++) {
+			for (size_t i = 0; i < order_list.size(); i++) {
 				if (!order_list[i]->Finished()) {
 					finished = false;
 					break;
@@ -125,7 +125,7 @@ private:
 
 		OrderInfo *Find(const char *local_id) {
 			OrderInfo *target_order = NULL;
-			for (int i = 0; i < order_list.size(); i++) {
+			for (size_t i = 0; i < order_list.size(); i++) {
 				if (strcmp(local_id, order_list[i]->local_id) == 0) {
 					target_order = order_list[i];
 					break;
@@ -135,6 +135,7 @@ private:
 		}
 	};
 
+	void LoadConfig();
 	void LoadBasketID();
 	void WaitToOrder();
 	void FreshKeyboardInput();
@@ -160,6 +161,7 @@ private:
 	char order_directory_[64];
 	char cancel_directory_[64];
 	char response_directory_[64];
+	char config_file_name_[64];
 	char basket_id_file_name_[64];
 	BFInputOrderField basket_orders_[2][300];
 	int basket_size_[2];

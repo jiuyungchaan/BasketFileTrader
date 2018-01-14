@@ -30,6 +30,9 @@ BasketFileTraderApi *TraderManager::RegisterTrader(const string &account_id, con
 			else if (client_type == "WINNER") {
 				return trader_;
 			}
+			else if (client_type == "TSI") {
+				return trader_;
+			}
 			else {
 				IMSTrader *dummy_trader = new IMSTrader(account_id.c_str());
 				return dummy_trader;
@@ -45,6 +48,11 @@ BasketFileTraderApi *TraderManager::RegisterTrader(const string &account_id, con
 		}
 		else if (client_type == "WINNER") {
 			trader_ = new WinnerTrader(account_id.c_str());
+			trader_->Init();
+			return trader_;
+		}
+		else if (client_type == "TSI") {
+			trader_ = new TSITrader(account_id.c_str());
 			trader_->Init();
 			return trader_;
 		}

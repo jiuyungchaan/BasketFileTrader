@@ -3,6 +3,7 @@
 
 #include "IMSTrader.h"
 #include "WinnerTrader.h"
+#include "TSITrader.h"
 #include <map>
 #include <string>
 #include <boost/thread.hpp>
