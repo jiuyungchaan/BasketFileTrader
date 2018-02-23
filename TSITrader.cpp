@@ -43,7 +43,7 @@ TSITrader::~TSITrader() {
 void TSITrader::Init() {
 	cout << "Initialize trader api successfully" << endl;
 	logined_ = true;
-	//boost::thread keyboard_thread(boost::bind(&TSITrader::FreshKeyboardInput, this));
+	boost::thread keyboard_thread(boost::bind(&TSITrader::FreshKeyboardInput, this));
 	boost::thread scan_result_order_thread(boost::bind(&TSITrader::ScanResultOrderFile, this));
 	boost::thread scan_result_cancel_thread(boost::bind(&TSITrader::ScanResultCancelFile, this));
 	boost::thread scan_response_thread(boost::bind(&TSITrader::ScanResponseFile, this));
@@ -135,7 +135,7 @@ void TSITrader::FreshKeyboardInput() {
 			TopMostTSI();
 		}*/
 		loop = ++loop % 200;
-		Sleep(10);
+		Sleep(200);
 		// F1 - F12 : 112 - 123
 		// F8 to insert order
 		keybd_event(119, 0, 0, 0);
@@ -147,6 +147,7 @@ void TSITrader::FreshKeyboardInput() {
 
 // Result order file header:
 //    file_name, local_entrust_no, batch_no, entrust_no, fund_account, result, remark, trade_plat, asset_prop, compact_id
+//    tag
 void TSITrader::ScanResultOrderFile() {
 	cout << "Start to scan result order file..." << endl;
 	char response_file_name[128];
@@ -157,7 +158,7 @@ void TSITrader::ScanResultOrderFile() {
 	//char message[2048];
 	vector<string> fields;
 	while (true) {
-		Sleep(50);
+		Sleep(5);
 		ifstream response_file;
 		response_file.open(response_file_name, ifstream::in);
 		while (!response_file.eof()) {
@@ -180,7 +181,7 @@ void TSITrader::ScanResultOrderFile() {
 			}
 			fields.clear();
 			split(string(line), ",", fields);
-			if (fields.size() < 9 || fields.size() > 10) {
+			if (fields.size() < 9 || fields.size() > 11) {
 				if (fields.size() == 0)
 					continue;
 				cout << "Result order File Fields:" << endl;
@@ -247,7 +248,7 @@ void TSITrader::ScanResultCancelFile() {
 	//char message[2048];
 	vector<string> fields;
 	while (true) {
-		Sleep(50);
+		Sleep(5);
 		ifstream response_file;
 		response_file.open(response_file_name, ifstream::in);
 		while (!response_file.eof()) {
@@ -299,7 +300,8 @@ void TSITrader::ScanResultCancelFile() {
 // Response file header:
 //    id, init_date, fund_account, batch_no, entrust_no, exchange_type, stock_account, stock_code, stock_name, entrust_bs,
 //    entrust_price, entrust_amount, business_amount, business_price, entrust_type, entrust_status, entrust_time, entrust_date, entrust_prop, cancel_info,
-//    withdraw_amount, position_str, report_no, report_time, orig_order_id, trade_plat
+//    withdraw_amount, position_str, report_no, report_time, orig_order_id, trade_plat, max_price_levels, trade_time_type, mac, client_version,
+//    tag
 void TSITrader::ScanResponseFile() {
 	cout << "Start to scan response file..." << endl;
 	char response_file_name[128];
@@ -309,8 +311,10 @@ void TSITrader::ScanResponseFile() {
 	char line[2048];
 	char message[2048];
 	vector<string> fields;
+	int times_waited = 1;
+	int no_not_found = -1;
 	while (true) {
-		Sleep(50);
+		Sleep(20);
 		ifstream response_file;
 		response_file.open(response_file_name, ifstream::in);
 		while (!response_file.eof()) {
@@ -333,7 +337,7 @@ void TSITrader::ScanResponseFile() {
 			}
 			fields.clear();
 			split(string(line), ",", fields);
-			if (fields.size() < 25 || fields.size() > 26) {
+			if (fields.size() < 25 || fields.size() > 31){
 				if (fields.size() == 0)
 				continue;
 				cout << "Response File Fields:" << endl;
@@ -346,8 +350,22 @@ void TSITrader::ScanResponseFile() {
 			int entrust_no = atoi(fields[4].c_str());
 			set<int>::iterator it = entrust_nos_.find(entrust_no);
 			if (it == entrust_nos_.end()) {
-				line_scanned--;
-				break; // if entrust no not found, wait for this entrust no to continue
+				if (entrust_no != no_not_found) {
+					no_not_found = entrust_no;
+					times_waited = 1;
+					line_scanned--;
+					break; // if entrust no not found, wait for this entrust no to continue
+				}
+				else {
+					times_waited++;
+					if (times_waited > 5) {
+						entrust_nos_.insert(entrust_no);
+					}
+					else {
+						line_scanned--;
+						break;
+					}
+				}
 			}
 
 			// entrust_type: 0:buy-sell 1:query 2:cancel 3:modify
@@ -421,7 +439,7 @@ void TSITrader::ScanResponseFile() {
 // Trade File Header:
 //   id, date, exchange_type, fund_account, stock_account, stock_code, entrust_bs, business_price, business_amount, business_time,
 //   real_type, real_status, entrust_no, business_balance, stock_name, position_str, entrust_prop, business_no, serial_no, business_times,
-//   report_no, orig_order_id, trade_plat
+//   report_no, orig_order_id, trade_plat, tag
 void TSITrader::ScanTradeFile() {
 	cout << "Start to scan trade file..." << endl;
 	char trade_file_name[128];
@@ -432,7 +450,7 @@ void TSITrader::ScanTradeFile() {
 	char message[2048];
 	vector<string> fields;
 	while (true) {
-		Sleep(50);
+		Sleep(20);
 		ifstream trade_file;
 		trade_file.open(trade_file_name, ifstream::in);
 		while (!trade_file.eof()) {
@@ -456,7 +474,7 @@ void TSITrader::ScanTradeFile() {
 			}
 			fields.clear();
 			split(string(line), ",", fields);
-			if (fields.size() < 22 || fields.size() > 23) {
+			if (fields.size() < 22 || fields.size() > 24) {
 				if (fields.size() == 0)
 					continue;
 				cout << "Response File Fields:" << endl;
@@ -541,7 +559,7 @@ void TSITrader::ScanTradeFile() {
 
 // fund_account, money_type, current_balance, begin_balance, enable_balance, foregift_balance, mortgage_balance, frozen_balance, unfrozen_balance, fetch_balance,
 // fetch_cash, entrust_buy_balance, market_value, asset_balance, correct_balance, fund_balance, opfund_market_value, interest, integral_balance, fine_integral,
-// pre_interest, pre_fine, pre_interest_tax, rate_kind
+// pre_interest, pre_fine, pre_interest_tax, rate_kind, hk_enable_balance
 void TSITrader::ScanFundFile() {
 	char fund_file_name[128];
 	snprintf(fund_file_name, sizeof(fund_file_name), "%s\\%s_FUND.%d.csv", response_directory_, user_id_, date_);
@@ -556,7 +574,7 @@ void TSITrader::ScanFundFile() {
 			continue;
 		fields.clear();
 		split(string(line), ",", fields);
-		if (fields.size() < 23 || fields.size() > 24) {
+		if (fields.size() < 23 || fields.size() > 25) {
 			cout << "Fund Fields:" << fields.size() << endl;
 			continue;
 		}
@@ -566,7 +584,7 @@ void TSITrader::ScanFundFile() {
 		snprintf(message, sizeof(message), "TYPE=ACCOUNT;ACCOUNT_ID=%s;IS_LAST=%d;"
 			"RT_ACCOUNT_NET_WORTH=%lf;RT_CASH_BALANCE=%s;RT_MARKET_VALUE=%s;"
 			"RT_TRADING_POWER=%s",
-			user_id_, 1, 0.0, fields[2].c_str(), fields[12].c_str(), fields[4].c_str());
+			user_id_, 1, 0.0, fields[4].c_str(), fields[12].c_str(), fields[2].c_str());
 		cout << message << endl;
 		BOServer::Instance().Callback(message, this);
 	} // while
