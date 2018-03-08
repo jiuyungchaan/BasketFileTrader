@@ -300,7 +300,10 @@ void BOClient::ReqQryInvestorPosition(map<string, string>& properties) {
 void BOClient::ReqQryInvestorMarginStock(map<string, string>& properties) {
 	BFQryInvestorMarginStockField field;
 	memset(&field, 0, sizeof(field));
-
+	string account = properties["ACCOUNT"];
+	if (strcmp(account.c_str(), user_id_) != 0)
+		return;
+	snprintf(field.InvestorID, sizeof(field.InvestorID), "%s", account.c_str());
 	trader_->ReqQryInvestorMarginStock(&field, 0);
 	return;
 }

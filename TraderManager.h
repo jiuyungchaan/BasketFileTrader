@@ -4,6 +4,7 @@
 #include "IMSTrader.h"
 #include "WinnerTrader.h"
 #include "TSITrader.h"
+#include "TSICreditTrader.h"
 #include <map>
 #include <string>
 #include <boost/thread.hpp>
