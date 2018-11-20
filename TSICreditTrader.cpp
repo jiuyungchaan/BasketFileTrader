@@ -633,6 +633,7 @@ void TSICreditTrader::ScanFundFile() {
 		fund_file.getline(line, 2048);
 		if (strcmp(line, "") == 0 || line[0] == '#')
 			continue;
+		cout << line << endl;
 		fields.clear();
 		split(string(line), ",", fields);
 		if (fields.size() < 47 || fields.size() > 48) {
@@ -685,10 +686,10 @@ void TSICreditTrader::ScanPositionFile() {
 			snprintf(pre_message, sizeof(pre_message), "%s;IS_LAST=%d;", message, 0);
 		}
 		string exch;
-		if (fields[1] == "1") {
+		if (fields[2] == "1") {
 			exch = "SH";
 		}
-		else if (fields[1] == "2") {
+		else if (fields[2] == "2") {
 			exch = "SZ";
 		}
 
@@ -742,6 +743,7 @@ void TSICreditTrader::ScanCompactFile() {
 		position_file.getline(line, 2048);
 		if (strcmp(line, "") == 0 || line[0] == '#')
 			continue;
+		cout << line << endl;
 		fields.clear();
 		split(string(line), ",", fields);
 		if (fields.size() < 40 || fields.size() > 41) {
@@ -750,6 +752,9 @@ void TSICreditTrader::ScanCompactFile() {
 		}
 		if (strcmp(fields[2].c_str(), user_id_)) {
 			continue; // not this account or read the header line
+		}
+		if (fields[16] != "1") {
+			continue;
 		}
 		string exch;
 		if (fields[4] == "1") {

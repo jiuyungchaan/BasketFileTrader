@@ -146,7 +146,7 @@ void BOClient::decode(const char *message) {
 	else if (msg_type == "QUERYACCOUNT") {
 		ReqQryInvestorAccount(properties);
 	}
-	else if (msg_type == "MARGINSTOCK") {
+	else if (msg_type == "QUERYMARGINSTOCK") {
 		ReqQryInvestorMarginStock(properties);
 	}
 }
