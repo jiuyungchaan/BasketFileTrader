@@ -21,7 +21,7 @@ TSICreditTrader::TSICreditTrader(const char *user_id) {
 	request_id_ = 1;
 	local_entrust_no_ = entrust_cancel_no_ = 1;
 	interval_ = 100;
-	orders_ = new order[50000];
+	// orders_ = new order[50000];
 	local_orders_ = new BFInputOrderField*[50000];
 	memset(local_orders_, 0, 50000 * sizeof(BFInputOrderField*));
 	snprintf(config_file_name_, sizeof(config_file_name_), "%s", "tsi-credit.txt");
@@ -308,7 +308,7 @@ void TSICreditTrader::ScanResultCancelFile() {
 //    tag
 //    id, init_date, entrust_time, fund_account, asset_prop, batch_no, entrust_no, orig_order_id, exchange_type, stock_code,
 //    stock_name, entrust_bs, entrust_price, entrust_amount, entrust_prop, entrust_type, entrust_status, business_amount, business_price, withdraw_amount,
-//    cashgroup_prop, compact_id, report_no, cancel_info, trade_name, mac, client_version, tag
+//    cashgroup_prop, compact_id, report_no, cancel_info, trade_name, mac, client_version, tag, business_balance, instance_id
 void TSICreditTrader::ScanResponseFile() {
 	cout << "Start to scan response file..." << endl;
 	char response_file_name[128];
@@ -344,7 +344,7 @@ void TSICreditTrader::ScanResponseFile() {
 			}
 			fields.clear();
 			split(string(line), ",", fields);
-			if (fields.size() < 25 || fields.size() > 28) {
+			if (fields.size() < 28 || fields.size() > 30) {
 				if (fields.size() == 0)
 					continue;
 				cout << "Response File Fields:" << endl;
@@ -380,8 +380,9 @@ void TSICreditTrader::ScanResponseFile() {
 			int entrust_type = atoi(fields[15].c_str());
 			int dir;
 			if (entrust_type == 6 || entrust_type == 7 || entrust_type == 9) {
-				if (!orders_[entrust_no].init) {
-					orders_[entrust_no].init = 1;
+				if (!orders_[entrust_no]) {
+					orders_[entrust_no] = new order();
+					orders_[entrust_no]->init = 1;
 					int entrust_bs = atoi(fields[11].c_str());
 					if (entrust_bs == 1) {
 						if (entrust_type == 6)
@@ -399,11 +400,11 @@ void TSICreditTrader::ScanResponseFile() {
 						else if (entrust_type == 9)
 							dir = BF_D_COLLATERALSELL;
 					}
-					snprintf(orders_[entrust_no].instrument_id, sizeof(orders_[entrust_no].instrument_id), "%s", fields[9].c_str());
-					orders_[entrust_no].direction = dir;
-					orders_[entrust_no].exch = atoi(fields[8].c_str());
-					orders_[entrust_no].volume = atoi(fields[13].c_str());
-					orders_[entrust_no].limit_price = atof(fields[12].c_str());
+					snprintf(orders_[entrust_no]->instrument_id, sizeof(orders_[entrust_no]->instrument_id), "%s", fields[9].c_str());
+					orders_[entrust_no]->direction = dir;
+					orders_[entrust_no]->exch = atoi(fields[8].c_str());
+					orders_[entrust_no]->volume = atoi(fields[13].c_str());
+					orders_[entrust_no]->limit_price = atof(fields[12].c_str());
 				}
 			}
 			cout << "Read response:" << line << endl;
@@ -481,7 +482,7 @@ void TSICreditTrader::ScanResponseFile() {
 //   report_no, orig_order_id, trade_plat, tag
 //   id, init_date, business_time, fund_account, asset_prop, exchange_type, stock_code, stock_name, business_no, business_price,
 //   business_amount, entrust_bs, real_type, real_status, business_balance, entrust_no, orig_order_id, entrust_prop, entrust_type, report_no,
-//   trade_name, tag
+//   trade_name, tag, instance_id
 void TSICreditTrader::ScanTradeFile() {
 	cout << "Start to scan trade file..." << endl;
 	char trade_file_name[128];
@@ -536,15 +537,18 @@ void TSICreditTrader::ScanTradeFile() {
 			}
 
 			string status = "PARTIALLYFILLED";
-			if (fields[12] == "0") {
+			if (fields[12] == "9" || fields[12] == "6" || fields[12] == "7") {
 				// if deal type is trade
-				if (!orders_[entrust_no].init) {
+				if (!orders_[entrust_no]) {
 					line_scanned--;
 					break; // if order information not initalized, wait for this order
 				}
 				int fill_vol = atoi(fields[10].c_str());
-				orders_[entrust_no].fill_vol += fill_vol;
-				if (orders_[entrust_no].fill_vol == orders_[entrust_no].volume) {
+				double fill_price = atof(fields[9].c_str());
+				if (fill_price < 0.001) // fill price is 0
+					continue;
+				orders_[entrust_no]->fill_vol += fill_vol;
+				if (orders_[entrust_no]->fill_vol == orders_[entrust_no]->volume) {
 					status = "FILLED";
 				}
 			}
@@ -552,13 +556,17 @@ void TSICreditTrader::ScanTradeFile() {
 				// if deal type is cancel
 				status = "CANCELED";
 			}
+			else {
+				cout << "other type:" << fields[12] << endl;
+				continue;
+			}
 			map<int, string>::iterator ito = entrust2order_.find(orig_entrust_no);
 			if (ito == entrust2order_.end()) {
 				break; // if local_order_id matching for entrust_no not found, pass this message
 			}
 			string local_order_id = ito->second;
 
-			int dir = orders_[entrust_no].direction;
+			int dir = orders_[orig_entrust_no]->direction;
 			string direction;
 			if (dir == BF_D_COLLATERALBUY) {
 				direction = "COLLATERALBUY";
@@ -594,17 +602,17 @@ void TSICreditTrader::ScanTradeFile() {
 				snprintf(message, sizeof(message), "TYPE=TRADE;STATUS=%s;SYS_ORDER_ID=%d;"
 					"LOCAL_ORDER_ID=%s;SYMBOL=%s;ACCOUNT=%s;QUANTITY=%d;LIMIT_PRICE=%lf;"
 					"DIRECTION=%s;FILLED_QUANTITY=%s;FILLED_PRICE=%s;LEFT_QUANTITY=%d;",
-					status.c_str(), orig_entrust_no, local_order_id.c_str(), symbol, fields[3].c_str(), orders_[orig_entrust_no].volume,
-					orders_[orig_entrust_no].limit_price, direction.c_str(), fields[10].c_str(), fields[9].c_str(),
-					orders_[orig_entrust_no].volume - orders_[orig_entrust_no].fill_vol);
+					status.c_str(), orig_entrust_no, local_order_id.c_str(), symbol, fields[3].c_str(), orders_[orig_entrust_no]->volume,
+					orders_[orig_entrust_no]->limit_price, direction.c_str(), fields[10].c_str(), fields[9].c_str(),
+					orders_[orig_entrust_no]->volume - orders_[orig_entrust_no]->fill_vol);
 				cout << message << endl;
 				BOServer::Instance().Callback(message, this);
 			}
 			snprintf(message, sizeof(message), "TYPE=UPDATE;STATUS=%s;SYS_ORDER_ID=%d;"
 				"LOCAL_ORDER_ID=%s;SYMBOL=%s;ACCOUNT=%s;QUANTITY=%d;LIMIT_PRICE=%lf;"
 				"DIRECTION=%s;FILLED_QUANTITY=%s;FILLED_PRICE=%s;LEFT_QUANTITY=%d;",
-				status.c_str(), orig_entrust_no, local_order_id.c_str(), symbol, fields[3].c_str(), orders_[orig_entrust_no].volume,
-				orders_[orig_entrust_no].limit_price, direction.c_str(), "0", "0.0", orders_[orig_entrust_no].volume - orders_[orig_entrust_no].fill_vol);
+				status.c_str(), orig_entrust_no, local_order_id.c_str(), symbol, fields[3].c_str(), orders_[orig_entrust_no]->volume,
+				orders_[orig_entrust_no]->limit_price, direction.c_str(), "0", "0.0", orders_[orig_entrust_no]->volume - orders_[orig_entrust_no]->fill_vol);
 			cout << message << endl;
 			BOServer::Instance().Callback(message, this);
 		} // while not eof
@@ -724,6 +732,9 @@ void TSICreditTrader::ScanPositionFile() {
 	position_file.close();
 }
 
+// RZRQ_ENABLEAMOUNT
+// fund_account, exchange_type, stock_code, stock_name, slo_status, enable_amount, cashgroup_prop
+// RZRQ_COMPACT:
 // open_date, compact_id, fund_account, money_type, exchange_type, stock_account, stock_code, stock_name, stock_type, crdt_ratio,
 // entrust_no, entrust_price, entrust_amount, business_amount, business_balance, business_fare, compact_type, compact_status, begin_compact_amount, begin_compact_balance,
 // begin_compact_fare, real_compact_balance, real_compact_amount, real_compact_fare, real_compact_interest, total_debit, year_rate, ret_end_date, date_clear, used_bail_balance,
@@ -732,11 +743,52 @@ void TSICreditTrader::ScanPositionFile() {
 void TSICreditTrader::ScanCompactFile() {
 	char compact_file_name[128];
 	snprintf(compact_file_name, sizeof(compact_file_name), "%s\\%s_RZRQ_COMPACT.%d.csv", response_directory_, user_id_, date_);
+	char enableamount_file_name[128];
+	snprintf(enableamount_file_name, sizeof(enableamount_file_name), "%s\\%s_RZRQ_ENABLEAMOUNT.%d.csv", response_directory_, user_id_, date_);
 	char line[2048];
 	char message[2048] = { 0 };
 	char pre_message[2048] = { 0 };
 	vector<string> fields;
 	map<string, margin_stock*> position_map;
+	ifstream amount_file;
+	amount_file.open(enableamount_file_name, ifstream::in);
+	while (!amount_file.eof()) {
+		amount_file.getline(line, 2048);
+		if (strcmp(line, "") == 0 || line[0] == '#')
+			continue;
+		cout << line << endl;
+		fields.clear();
+		split(string(line), ",", fields);
+		if (fields.size() < 7 || fields.size() > 8) {
+			cout << "Margin Stock Enable Amount Fields:" << fields.size() << endl;
+			continue;
+		}
+		if (strcmp(fields[0].c_str(), user_id_)) {
+			continue; // not this account or read the header line
+		}
+		string exch;
+		if (fields[1] == "1") {
+			exch = "SH";
+		}
+		else if (fields[1] == "2") {
+			exch = "SZ";
+		}
+
+		char symbol[16];
+		snprintf(symbol, sizeof(symbol), "%s.%s", fields[2].c_str(), exch.c_str());
+
+		map<string, margin_stock*>::iterator it = position_map.find(string(symbol));
+		margin_stock *ms;
+		if (it != position_map.end()) {
+			ms = it->second;
+		}
+		else {
+			ms = new margin_stock();
+			position_map.insert(pair<string, margin_stock*>(string(symbol), ms));
+		}
+		ms->quota = atoi(fields[5].c_str());
+	}
+
 	ifstream position_file;
 	position_file.open(compact_file_name, ifstream::in);
 	while (!position_file.eof()) {
@@ -796,12 +848,13 @@ void TSICreditTrader::ScanCompactFile() {
 		if (++cnt == sz)
 			is_last = 1;
 		snprintf(message, sizeof(message), "TYPE=MARGINSTOCK;ACCOUNT_ID=%s;SYMBOL=%s;TOTAL_MARGIN_QUOTA=0;"
-			"AVAILABLE_MARGIN_QUOTA=0;QUANTITY=%d;TODAY_POSITION=%d;IS_LAST=%d;",
-			user_id_, it->first.c_str(), it->second->yd_volume, it->second->td_volume, is_last);
+			"AVAILABLE_MARGIN_QUOTA=%d;QUANTITY=%d;TODAY_POSITION=%d;IS_LAST=%d;",
+			user_id_, it->first.c_str(), it->second->quota, it->second->yd_volume, it->second->td_volume, is_last);
 		delete it->second;
 		cout << message << endl;
 		BOServer::Instance().Callback(message, this);
 	}
+	amount_file.close();
 	position_file.close();
 }
 

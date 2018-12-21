@@ -55,10 +55,11 @@ private:
 
 	struct margin_stock {
 	public:
+		int quota;
 		int td_volume;
 		int yd_volume;
 
-		margin_stock() : td_volume(0), yd_volume(0) {}
+		margin_stock() : quota(0), td_volume(0), yd_volume(0) {}
 	};
 
 	void LoadConfig();
@@ -82,7 +83,8 @@ private:
 	std::map<int, std::string> local_entrust2order_; // map match local_entrust_no for local_order_id
 	std::map<int, std::string> entrust2order_; // map match entrust no for local_order_id
 	std::set<int> entrust_nos_; // entrust_no set
-	order *orders_;
+	// order *orders_;
+	std::map<int, order*> orders_;
 	BFInputOrderField **local_orders_;
 
 	std::fstream log_file_;
