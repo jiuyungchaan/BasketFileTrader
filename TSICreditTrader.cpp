@@ -537,7 +537,8 @@ void TSICreditTrader::ScanTradeFile() {
 			}
 
 			string status = "PARTIALLYFILLED";
-			if (fields[12] == "9" || fields[12] == "6" || fields[12] == "7") {
+			//if (fields[12] == "9" || fields[12] == "6" || fields[12] == "7") {
+			if (fields[12] == "0") {
 				// if deal type is trade
 				if (!orders_[entrust_no]) {
 					line_scanned--;
